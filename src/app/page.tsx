@@ -139,52 +139,7 @@ const XAnalyticsDashboard = () => {
   };
 
   return (
-    <div className='min-h-screen bg-gray-50 flex'>
-      {/* サイドバー */}
-      <div className='w-64 bg-white shadow-lg border-r border-gray-200'>
-        <div className='p-6 border-b border-gray-200'>
-          <h1 className='text-xl font-bold text-gray-900'>X Analytics</h1>
-          <div className='flex items-center mt-2'>
-            <div
-              className={`w-2 h-2 rounded-full mr-2 ${
-                apiSettings.isConnected ? "bg-green-500" : "bg-red-500"
-              }`}
-            ></div>
-            <p className='text-sm text-gray-600'>
-              {apiSettings.isConnected ? `@${apiSettings.username}` : "未接続"}
-            </p>
-          </div>
-          {!apiSettings.isConnected && (
-            <button
-              onClick={() => setShowApiForm(true)}
-              className='mt-2 text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors'
-            >
-              API接続
-            </button>
-          )}
-        </div>
-
-        <nav className='mt-6'>
-          {sidebarItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center px-6 py-3 text-left hover:bg-blue-50 transition-colors ${
-                  activeTab === item.id
-                    ? "bg-blue-50 text-blue-600 border-r-2 border-blue-600"
-                    : "text-gray-700"
-                }`}
-              >
-                <Icon className='w-5 h-5 mr-3' />
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-
+    <div className='bg-gray-50 '>
       {/* メインコンテンツ */}
       <div className='flex-1 overflow-auto'>
         {/* ダッシュボードコンテンツ */}
@@ -193,6 +148,12 @@ const XAnalyticsDashboard = () => {
             <div className='space-y-6'>
               {/* KPIカード */}
               <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6'>
+                <div className='bg-white p-6 rounded-lg shadow-sm border border-gray-200'>
+                  <TwitterPost
+                    onSuccess={handleTweetSuccess}
+                    onError={handleTweetError}
+                  />
+                </div>
                 <div className='bg-white p-6 rounded-lg shadow-sm border border-gray-200'>
                   <div className='flex items-center justify-between'>
                     <div>
@@ -236,13 +197,6 @@ const XAnalyticsDashboard = () => {
                   <p className='text-sm text-green-600 mt-2'>
                     +23% from last week
                   </p>
-                </div>
-
-                <div className='bg-white p-6 rounded-lg shadow-sm border border-gray-200'>
-                  <TwitterPost
-                    onSuccess={handleTweetSuccess}
-                    onError={handleTweetError}
-                  />
                 </div>
               </div>
 
