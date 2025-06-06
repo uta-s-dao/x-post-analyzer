@@ -156,7 +156,7 @@ export default function RootLayout({
           </div>
 
           {/* メインコンテンツエリア */}
-          <div className='flex-1 flex flex-col overflow-hidden lg:ml-64'>
+          <div className='flex-1 flex flex-col overflow-hidden'>
             {/* モバイル用ヘッダー */}
             <div className='lg:hidden bg-white border-b border-gray-200 p-4 flex items-center justify-between'>
               <button
@@ -173,14 +173,17 @@ export default function RootLayout({
 
             {/* メインコンテンツ */}
             <main className='flex-1 overflow-y-auto'>
-              <div className='p-4 lg:p-6'>{children}</div>
+              <div className='p-4 flex items-center'>{children}</div>
             </main>
           </div>
         </div>
 
         {/* API設定フォーム（モーダル） */}
         {showApiForm && (
-          <div className='fixed inset-0 z-50 flex items-center justify-center bg-opacity-50 p-4'>
+          <div
+            className='fixed inset-0 z-50 flex items-center justify-center p-4'
+            style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+          >
             <div className='bg-white rounded-lg shadow-xl p-6 w-full max-w-md'>
               <h3 className='text-lg font-semibold mb-4'>API接続設定</h3>
               <form
