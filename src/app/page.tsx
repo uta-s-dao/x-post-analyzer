@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import TwitterPost from "./components/post";
 import {
   BarChart,
   Bar,
@@ -22,7 +23,7 @@ import {
   MessageCircle,
   Heart,
   Repeat2,
-  Eye,
+  // Eye,
   Settings,
   // Search,
   // Filter,
@@ -112,6 +113,16 @@ const XAnalyticsDashboard = () => {
     } else {
       alert("必要な認証情報を入力してください。");
     }
+  };
+
+  const handleTweetSuccess = (data: []) => {
+    console.log("Tweet posted successfully:", data);
+    // 成功時の処理
+  };
+
+  const handleTweetError = (error: string) => {
+    console.error("Tweet error:", error);
+    // エラー時の処理
   };
 
   const handleApiDisconnect = () => {
@@ -228,18 +239,10 @@ const XAnalyticsDashboard = () => {
                 </div>
 
                 <div className='bg-white p-6 rounded-lg shadow-sm border border-gray-200'>
-                  <div className='flex items-center justify-between'>
-                    <div>
-                      <p className='text-sm font-medium text-gray-600'>
-                        インプレッション
-                      </p>
-                      <p className='text-2xl font-bold text-gray-900'>15.4K</p>
-                    </div>
-                    <Eye className='w-8 h-8 text-purple-500' />
-                  </div>
-                  <p className='text-sm text-green-600 mt-2'>
-                    +15% from last week
-                  </p>
+                  <TwitterPost
+                    onSuccess={handleTweetSuccess}
+                    onError={handleTweetError}
+                  />
                 </div>
               </div>
 
