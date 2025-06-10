@@ -46,12 +46,6 @@ export default function RootLayout({
   });
   const [showApiForm, setShowApiForm] = useState(false);
 
-  // デバッグ用：状態をコンソールに出力
-  React.useEffect(() => {
-    console.log("isMobileMenuOpen:", isMobileMenuOpen);
-    console.log("showApiForm:", showApiForm);
-  }, [isMobileMenuOpen, showApiForm]);
-
   return (
     <html lang='ja'>
       <body
