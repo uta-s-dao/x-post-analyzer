@@ -1,3 +1,0 @@
-[submodule "scraper/scraper/snscrape"]
-	path = scraper/scraper/snscrape
-	url = https://github.com/JustAnotherArchivist/snscrape.git
