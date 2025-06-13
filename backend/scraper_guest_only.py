@@ -1,31 +1,24 @@
-# twikit_scraper.py
+# guest_only_scraper.py
 import asyncio
 import json
 import random
 import time
-from datetime import datetime
-from twikit import Client
 from twikit.guest import GuestClient
 
-class TwikitScraper:
-    def __init__(self, use_guest_mode=True, human_like=True):
+class GuestTwikitScraper:
+    def __init__(self, human_like=True):
         """
-        Twikitスクレイパーの初期化
+        ゲスト専用Twikitスクレイパーの初期化
         
         Args:
-            use_guest_mode (bool): ゲストモード使用（ログイン不要）
             human_like (bool): 人間らしい動作を模倣（レート制限回避）
         """
-        self.use_guest_mode = use_guest_mode
         self.human_like = human_like
         self.request_count = 0
         self.last_request_time = 0
         self.session_start_time = time.time()
-        
-        if use_guest_mode:
-            self.client = GuestClient()
-        else:
-            self.client = Client('ja-JP')  # 日本語設定
+        self.client = GuestClient()
+    
     async def human_delay(self):
         """人間らしい待機時間を作る"""
         if not self.human_like:
@@ -59,87 +52,24 @@ class TwikitScraper:
         await asyncio.sleep(base_delay)
         self.last_request_time = time.time()
 
-    async def setup(self, username=None, email=None, password=None):
+    async def setup(self):
         """セットアップ"""
-        if self.use_guest_mode:
-            # ゲストトークンを生成してクライアントを有効化
-            await self.client.activate()
-            print("ゲストモードで接続しました")
-        else:
-            if not all([username, email, password]):
-                raise ValueError("ログインモードには username, email, password が必要です")
-            
-            # ログイン（クッキーファイルを使用してセッション保持）
-            await self.client.login(
-                auth_info_1=username,
-                auth_info_2=email,
-                password=password,
-                cookies_file='cookies.json'  # セッション保持
-            )
-            print("ログインしました")
-    
-    async def search_tweets(self, query, product='Latest', count=20):
-        """
-        ツイート検索
-        
-        Args:
-            query (str): 検索クエリ
-            product (str): 'Top', 'Latest', 'Media', 'People'
-            count (int): 取得数
-        """
-        try:
-            print(f"検索中: '{query}'")
-            
-            if self.use_guest_mode:
-                # ゲストモードでは検索機能が制限される場合があります
-                print("注意: ゲストモードでは一部機能が制限されます")
-                return []
-            else:
-                # ログインモードで検索
-                tweets = await self.client.search_tweet(query, product, count)
-                
-                results = []
-                for tweet in tweets:
-                    tweet_data = {
-                        'id': tweet.id,
-                        'text': tweet.text,
-                        'created_at': tweet.created_at,
-                        'user': {
-                            'id': tweet.user.id,
-                            'name': tweet.user.name,
-                            'username': tweet.user.screen_name,
-                            'followers_count': tweet.user.followers_count,
-                            'verified': tweet.user.verified
-                        },
-                        'metrics': {
-                            'retweet_count': tweet.retweet_count,
-                            'favorite_count': tweet.favorite_count,
-                            'reply_count': tweet.reply_count,
-                            'quote_count': tweet.quote_count if hasattr(tweet, 'quote_count') else 0
-                        },
-                        'url': f"https://twitter.com/{tweet.user.screen_name}/status/{tweet.id}"
-                    }
-                    results.append(tweet_data)
-                
-                return results
-                
-        except Exception as e:
-            print(f"検索エラー: {e}")
-            return []
+        await self.client.activate()
+        print("ゲストモードで接続しました")
+
+    def normalize_username(self, identifier):
+        """ユーザー名を正規化（@記号を除去）"""
+        identifier = str(identifier).strip()
+        if identifier.startswith('@'):
+            return identifier[1:]
+        return identifier
 
     async def get_user_info(self, username):
         """ユーザー情報取得（ユーザー名指定、@付き対応）"""
         try:
-            # 人間らしい遅延
             await self.human_delay()
-            
-            # @記号を除去して正規化
             clean_username = self.normalize_username(username)
-            
-            if self.use_guest_mode:
-                user = await self.client.get_user_by_screen_name(clean_username)
-            else:
-                user = await self.client.get_user_by_screen_name(clean_username)
+            user = await self.client.get_user_by_screen_name(clean_username)
             
             return {
                 'id': user.id,
@@ -156,7 +86,6 @@ class TwikitScraper:
             
         except Exception as e:
             print(f"ユーザー情報取得エラー: {e}")
-            # エラー時は少し長めに待機
             if self.human_like:
                 await asyncio.sleep(random.uniform(5.0, 10.0))
             return None
@@ -164,10 +93,8 @@ class TwikitScraper:
     async def get_user_info_by_id(self, user_id):
         """ユーザー情報取得（ユーザーID指定）"""
         try:
-            if self.use_guest_mode:
-                user = await self.client.get_user_by_id(str(user_id))
-            else:
-                user = await self.client.get_user_by_id(str(user_id))
+            await self.human_delay()
+            user = await self.client.get_user_by_id(str(user_id))
             
             return {
                 'id': user.id,
@@ -184,23 +111,17 @@ class TwikitScraper:
             
         except Exception as e:
             print(f"ユーザー情報取得エラー (ID: {user_id}): {e}")
+            if self.human_like:
+                await asyncio.sleep(random.uniform(5.0, 10.0))
             return None
     
     async def get_user_tweets(self, username, count=20):
         """ユーザーのツイート取得（ユーザー名指定、@付き対応）"""
         try:
-            # 人間らしい遅延
             await self.human_delay()
-            
-            # @記号を除去して正規化
             clean_username = self.normalize_username(username)
-            
-            if self.use_guest_mode:
-                user = await self.client.get_user_by_screen_name(clean_username)
-                tweets = await self.client.get_user_tweets(user.id, count=count)
-            else:
-                user = await self.client.get_user_by_screen_name(clean_username)
-                tweets = await self.client.get_user_tweets(user.id, count=count)
+            user = await self.client.get_user_by_screen_name(clean_username)
+            tweets = await self.client.get_user_tweets(user.id, count=count)
             
             results = []
             for tweet in tweets:
@@ -220,7 +141,6 @@ class TwikitScraper:
             
         except Exception as e:
             print(f"ユーザーツイート取得エラー: {e}")
-            # エラー時は少し長めに待機
             if self.human_like:
                 await asyncio.sleep(random.uniform(5.0, 10.0))
             return []
@@ -228,17 +148,12 @@ class TwikitScraper:
     async def get_user_tweets_by_id(self, user_id, count=20):
         """ユーザーのツイート取得（ユーザーID指定）"""
         try:
-            # まずユーザー情報を取得してユーザー名を取得
             user_info = await self.get_user_info_by_id(user_id)
             if not user_info:
                 return []
             
             username = user_info['username']
-            
-            if self.use_guest_mode:
-                tweets = await self.client.get_user_tweets(str(user_id), count=count)
-            else:
-                tweets = await self.client.get_user_tweets(str(user_id), count=count)
+            tweets = await self.client.get_user_tweets(str(user_id), count=count)
             
             results = []
             for tweet in tweets:
@@ -259,6 +174,8 @@ class TwikitScraper:
             
         except Exception as e:
             print(f"ユーザーツイート取得エラー (ID: {user_id}): {e}")
+            if self.human_like:
+                await asyncio.sleep(random.uniform(5.0, 10.0))
             return []
 
     async def get_multiple_users_tweets(self, usernames, count_per_user=20):
@@ -269,7 +186,6 @@ class TwikitScraper:
             print(f"@{username} のツイートを取得中...")
             tweets = await self.get_user_tweets(username, count_per_user)
             all_tweets.extend(tweets)
-            # human_delay は get_user_tweets 内で呼ばれるので追加の sleep は不要
         
         return all_tweets
 
@@ -281,23 +197,13 @@ class TwikitScraper:
             print(f"ID:{user_id} のツイートを取得中...")
             tweets = await self.get_user_tweets_by_id(user_id, count_per_user)
             all_tweets.extend(tweets)
-            # human_delay は get_user_tweets_by_id 内で呼ばれるので追加の sleep は不要
         
         return all_tweets
 
-    def normalize_username(self, identifier):
-        """ユーザー名を正規化（@記号を除去）"""
-        identifier = str(identifier).strip()
-        if identifier.startswith('@'):
-            return identifier[1:]
-        return identifier
-
     async def get_user_tweets_flexible(self, identifier, count=20):
         """ユーザーのツイート取得（ユーザー名またはID自動判別、@付き対応）"""
-        # @記号を除去
         clean_identifier = self.normalize_username(identifier)
         
-        # 数字のみの場合はユーザーIDとして扱う
         if clean_identifier.isdigit():
             return await self.get_user_tweets_by_id(clean_identifier, count)
         else:
@@ -305,10 +211,8 @@ class TwikitScraper:
 
     async def get_user_info_flexible(self, identifier):
         """ユーザー情報取得（ユーザー名またはID自動判別、@付き対応）"""
-        # @記号を除去
         clean_identifier = self.normalize_username(identifier)
         
-        # 数字のみの場合はユーザーIDとして扱う
         if clean_identifier.isdigit():
             return await self.get_user_info_by_id(clean_identifier)
         else:
@@ -328,12 +232,10 @@ class TwikitScraper:
     async def get_user_followers(self, username, count=100):
         """ユーザーのフォロワーリストを取得"""
         try:
-            if self.use_guest_mode:
-                user = await self.client.get_user_by_screen_name(username)
-                followers = await self.client.get_user_followers(user.id, count=count)
-            else:
-                user = await self.client.get_user_by_screen_name(username)
-                followers = await self.client.get_user_followers(user.id, count=count)
+            await self.human_delay()
+            clean_username = self.normalize_username(username)
+            user = await self.client.get_user_by_screen_name(clean_username)
+            followers = await self.client.get_user_followers(user.id, count=count)
             
             follower_list = []
             for follower in followers:
@@ -350,6 +252,8 @@ class TwikitScraper:
             
         except Exception as e:
             print(f"フォロワー取得エラー: {e}")
+            if self.human_like:
+                await asyncio.sleep(random.uniform(5.0, 10.0))
             return []
 
     def is_trending_tweet(self, tweet, min_engagement=50):
@@ -387,7 +291,6 @@ class TwikitScraper:
         
         print(f"メインユーザー {len(main_usernames)}人とそのフォロワーから伸びツイートを収集中...")
         
-        # メインユーザーの処理
         for main_user in main_usernames:
             if main_user in processed_users:
                 continue
@@ -399,11 +302,9 @@ class TwikitScraper:
             all_trending_tweets.extend(main_trending)
             processed_users.add(main_user)
             
-            # フォロワーを取得
             print(f"@{main_user} のフォロワーを取得中...")
             followers = await self.get_user_followers(main_user, follower_count)
             
-            # フォロワーの伸びツイートを取得
             for i, follower in enumerate(followers, 1):
                 follower_username = follower['username']
                 
@@ -412,7 +313,6 @@ class TwikitScraper:
                     
                 print(f"  ({i}/{len(followers)}) @{follower_username} の伸びツイートをチェック中...")
                 
-                # フォロワー数が少なすぎる場合はスキップ
                 if follower['followers_count'] < 1000:
                     continue
                 
@@ -421,10 +321,7 @@ class TwikitScraper:
                 )
                 all_trending_tweets.extend(follower_trending)
                 processed_users.add(follower_username)
-                
-                # human_delay がフォロワーツイート取得で呼ばれるので追加sleep不要
             
-            # メインユーザー間の間隔（追加の休憩）
             if self.human_like:
                 await asyncio.sleep(random.uniform(3.0, 7.0))
         
@@ -457,20 +354,98 @@ class TwikitScraper:
         
         return buzz_tweets[:top_n]
     
-    async def get_trending_topics(self):
-        """トレンド取得（ログイン必要）"""
+    async def search_user_tweets(self, username, keyword, count=50):
+        """特定ユーザーのツイートからキーワード検索"""
         try:
-            if self.use_guest_mode:
-                print("トレンド取得にはログインが必要です")
-                return []
+            print(f"@{username} のツイートから '{keyword}' を検索中...")
             
-            trends = await self.client.get_trends()
-            return [{'name': trend.name, 'url': trend.url} for trend in trends]
+            # ユーザーのツイートを取得
+            all_tweets = await self.get_user_tweets(username, count)
+            
+            # キーワードでフィルタリング
+            keyword_lower = keyword.lower()
+            matching_tweets = []
+            
+            for tweet in all_tweets:
+                if keyword_lower in tweet['text'].lower():
+                    # バズ度を計算
+                    tweet['buzz_score'] = self.calculate_buzz_score(tweet)
+                    tweet['search_keyword'] = keyword
+                    matching_tweets.append(tweet)
+            
+            # バズ度順にソート
+            matching_tweets.sort(key=lambda x: x['buzz_score'], reverse=True)
+            
+            return matching_tweets
             
         except Exception as e:
-            print(f"トレンド取得エラー: {e}")
+            print(f"ユーザーツイート検索エラー ({username}): {e}")
             return []
-    
+
+    async def search_multiple_users_tweets(self, usernames, keyword, count_per_user=50, top_n=20):
+        """複数ユーザーのツイートからキーワード検索"""
+        all_matching_tweets = []
+        
+        print(f"{len(usernames)}人のユーザーから '{keyword}' を検索中...")
+        
+        for username in usernames:
+            matching_tweets = await self.search_user_tweets(username, keyword, count_per_user)
+            all_matching_tweets.extend(matching_tweets)
+        
+        if not all_matching_tweets:
+            print(f"キーワード '{keyword}' に一致するツイートが見つかりませんでした")
+            return []
+        
+        # バズ度順にソート
+        all_matching_tweets.sort(key=lambda x: x['buzz_score'], reverse=True)
+        
+        return all_matching_tweets[:top_n]
+
+    async def search_followers_tweets(self, main_username, keyword, follower_count=30, tweet_count_per_user=30, top_n=15):
+        """メインユーザーとそのフォロワーのツイートからキーワード検索"""
+        all_matching_tweets = []
+        processed_users = set()
+        
+        print(f"@{main_username} とフォロワーから '{keyword}' を検索中...")
+        
+        # メインユーザーから検索
+        main_matches = await self.search_user_tweets(main_username, keyword, tweet_count_per_user)
+        all_matching_tweets.extend(main_matches)
+        processed_users.add(main_username)
+        
+        # フォロワーを取得
+        followers = await self.get_user_followers(main_username, follower_count)
+        
+        # フォロワーのツイートから検索
+        for i, follower in enumerate(followers, 1):
+            follower_username = follower['username']
+            
+            if follower_username in processed_users:
+                continue
+                
+            print(f"  ({i}/{len(followers)}) @{follower_username} のツイートを検索中...")
+            
+            # フォロワー数が少ない場合はスキップ
+            if follower['followers_count'] < 1000:
+                continue
+            
+            follower_matches = await self.search_user_tweets(
+                follower_username, keyword, min(20, tweet_count_per_user)
+            )
+            all_matching_tweets.extend(follower_matches)
+            processed_users.add(follower_username)
+        
+        if not all_matching_tweets:
+            print(f"キーワード '{keyword}' に一致するツイートが見つかりませんでした")
+            return []
+        
+        print(f"\n合計 {len(all_matching_tweets)}件のマッチするツイートを発見")
+        
+        # バズ度順にソート
+        all_matching_tweets.sort(key=lambda x: x['buzz_score'], reverse=True)
+        
+        return all_matching_tweets[:top_n]
+
     def save_to_json(self, data, filename):
         """JSONファイルに保存"""
         with open(filename, 'w', encoding='utf-8') as f:
@@ -479,15 +454,14 @@ class TwikitScraper:
 
 # 使用例
 async def main():
-    # ゲストモードでの使用例（人間らしい動作有効）
-    print("=== ゲストモードテスト（人間らしい動作ON） ===")
-    guest_scraper = TwikitScraper(use_guest_mode=True, human_like=True)
-    await guest_scraper.setup()
+    # ゲスト専用スクレイパー（人間らしい動作ON）
+    print("=== ゲスト専用スクレイパー ===")
+    scraper = GuestTwikitScraper(human_like=True)
+    await scraper.setup()
     
-    # 単一ユーザーのツイート取得（ユーザー名指定）
-    print("\n--- 単一ユーザーのツイート取得（ユーザー名） ---")
-    tweets = await guest_scraper.get_user_tweets('jojou7777', count=5)
-    
+    # 単一ユーザーのツイート取得
+    print("\n--- 単一ユーザーのツイート取得 ---")
+    tweets = await scraper.get_user_tweets('@jojou7777', count=5)
     print(f"取得したツイート数: {len(tweets)}")
     
     for i, tweet in enumerate(tweets, 1):
@@ -496,37 +470,29 @@ async def main():
         print(f"   いいね: {tweet['favorite_count']}")
         print(f"   リツイート: {tweet['retweet_count']}")
     
-    # ユーザーID直接指定でのツイート取得
-    print("\n--- ユーザーID直接指定でのツイート取得 ---")
-    user_id = "44196397"  # elonmuskのユーザーID例
-    id_tweets = await guest_scraper.get_user_tweets_by_id(user_id, count=3)
+    # ユーザーID直接指定
+    print("\n--- ユーザーID直接指定 ---")
+    user_id = "44196397"
+    id_tweets = await scraper.get_user_tweets_by_id(user_id, count=3)
     print(f"ID:{user_id} から取得したツイート数: {len(id_tweets)}")
     
-    for i, tweet in enumerate(id_tweets, 1):
-        print(f"\n{i}. @{tweet['username']}")
-        print(f"   {tweet['text'][:100]}...")
-        print(f"   いいね: {tweet['favorite_count']}")
-    
-    # フレキシブル指定（自動判別、@付き対応）
-    print("\n--- フレキシブル指定（自動判別、@付き対応） ---")
-    flexible_tweets1 = await guest_scraper.get_user_tweets_flexible('@jojou7777', count=2)
-    flexible_tweets2 = await guest_scraper.get_user_tweets_flexible(user_id, count=2)
-    flexible_tweets3 = await guest_scraper.get_user_tweets_flexible('jojou7777', count=2)
+    # フレキシブル指定（@付き対応）
+    print("\n--- フレキシブル指定 ---")
+    flexible_tweets1 = await scraper.get_user_tweets_flexible('@jojou7777', count=2)
+    flexible_tweets2 = await scraper.get_user_tweets_flexible(user_id, count=2)
     print(f"@付きユーザー名指定: {len(flexible_tweets1)}件")
     print(f"ID指定: {len(flexible_tweets2)}件")
-    print(f"通常ユーザー名指定: {len(flexible_tweets3)}件")
     
-    # 指定ユーザーとフォロワーから伸びツイート取得
-    print("\n--- 指定ユーザーとフォロワーから伸びツイート取得 ---")
-    main_users = ['jojou7777','rei_0951']  # メインユーザー（界隈の中心人物）
+    # 界隈のバズツイート取得
+    print("\n--- 界隈のバズツイート取得 ---")
+    main_users = ['jojou7777', 'rei_0951']
     
-    # 伸びツイートのみを効率的に収集
-    buzz_tweets = await guest_scraper.get_buzz_tweets_from_users_and_followers(
+    buzz_tweets = await scraper.get_buzz_tweets_from_users_and_followers(
         main_usernames=main_users,
-        follower_count=30,        # 各メインユーザーから30人のフォロワーを調査
-        tweet_count_per_user=30,  # 各ユーザーから最大30ツイートをチェック
-        min_engagement=100,       # 最低エンゲージメント数（いいね+RT+返信）
-        top_n=15                  # 最終的に上位15ツイートを取得
+        follower_count=30,
+        tweet_count_per_user=30,
+        min_engagement=100,
+        top_n=15
     )
     
     print(f"\n界隈のバズツイート TOP {len(buzz_tweets)}")
@@ -539,46 +505,42 @@ async def main():
     
     # データ保存
     if buzz_tweets:
-        guest_scraper.save_to_json(buzz_tweets, 'community_buzz_tweets.json')
+        scraper.save_to_json(buzz_tweets, 'community_buzz_tweets.json')
     
-    print("\n" + "="*50)
+    # キーワード検索機能のテスト
+    print("\n--- キーワード検索テスト ---")
     
-    # ログインモードでの使用例（アカウント情報が必要）
-    print("\n=== ログインモードテスト ===")
-    print("注意: ログインモードを使用するには有効なTwitterアカウントが必要です")
+    # 単一ユーザーからキーワード検索
+    keyword_tweets = await scraper.search_user_tweets('jojou7777', 'Python', count=30)
+    print(f"@jojou7777 から 'Python' を検索: {len(keyword_tweets)}件")
     
-    # 実際のアカウント情報を使用する場合はコメントアウトを解除
-    """
-    login_scraper = TwikitScraper(use_guest_mode=False)
-    await login_scraper.setup(
-        username='your_username',
-        email='your_email@example.com',
-        password='your_password'
+    # 複数ユーザーからキーワード検索
+    multi_search = await scraper.search_multiple_users_tweets(
+        usernames=['jojou7777', 'rei_0951'],
+        keyword='AI',
+        count_per_user=30,
+        top_n=10
     )
+    print(f"複数ユーザーから 'AI' を検索: {len(multi_search)}件")
     
-    # ツイート検索（ログインモードのみ）
-    search_results = await login_scraper.search_tweets('Python programming', count=10)
-    print(f"検索結果: {len(search_results)}件")
-    
-    for i, tweet in enumerate(search_results[:3], 1):
-        print(f"\n{i}. @{tweet['user']['username']}")
-        print(f"   {tweet['text'][:100]}...")
-        print(f"   いいね: {tweet['metrics']['favorite_count']}")
-    
-    # 特定界隈のバズツイート取得
-    tech_influencers = ['jojou7777', 'sundarpichai', 'satyanadella', 'tim_cook']
-    buzz_tweets = await login_scraper.get_buzz_tweets_from_users(
-        usernames=tech_influencers,
-        count_per_user=50,
-        top_n=20
+    # フォロワー込みでキーワード検索
+    follower_search = await scraper.search_followers_tweets(
+        main_username='jojou7777',
+        keyword='プログラミング',
+        follower_count=20,
+        top_n=10
     )
+    print(f"フォロワー込みで 'プログラミング' を検索: {len(follower_search)}件")
     
-    # トレンド取得
-    trends = await login_scraper.get_trending_topics()
-    print(f"\nトレンド数: {len(trends)}")
-    for trend in trends[:5]:
-        print(f"  - {trend['name']}")
-    """
+    # 検索結果の表示例
+    if keyword_tweets:
+        print(f"\n=== '{keyword_tweets[0]['search_keyword']}' 検索結果 TOP 3 ===")
+        for i, tweet in enumerate(keyword_tweets[:3], 1):
+            print(f"\n{i}. @{tweet['username']}")
+            print(f"   {tweet['text'][:100]}...")
+            print(f"   バズ度: {tweet['buzz_score']:.1f}")
+            print(f"   エンゲージメント: ❤️{tweet['favorite_count']} 🔄{tweet['retweet_count']} 💬{tweet['reply_count']}")
+            print(f"   URL: {tweet['url']}")
 
 if __name__ == "__main__":
     # インストールコマンド: pip install twikit
