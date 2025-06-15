@@ -3,7 +3,6 @@ import asyncio
 import json
 import random
 import time
-from datetime import datetime
 from twikit import Client
 from twikit.guest import GuestClient
 
