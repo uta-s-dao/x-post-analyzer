@@ -5,6 +5,12 @@ import random
 import time
 from twikit import Client
 from twikit.guest import GuestClient
+"""
+community_buzz_tweets2.json
+orenikurue
+orenikurue
+orenikurue
+"""
 
 class TwikitScraper:
     def __init__(self, use_guest_mode=True, human_like=True):
@@ -80,7 +86,7 @@ class TwikitScraper:
     async def search_tweets(self, query, product='Latest', count=20):
         """
         ツイート検索
-        
+                
         Args:
             query (str): 検索クエリ
             product (str): 'Top', 'Latest', 'Media', 'People'
@@ -206,12 +212,7 @@ class TwikitScraper:
                 tweet_data = {
                     'id': tweet.id,
                     'text': tweet.text,
-                    'created_at': tweet.created_at,
-                    'username': clean_username,
-                    'retweet_count': tweet.retweet_count,
-                    'favorite_count': tweet.favorite_count,
-                    'reply_count': tweet.reply_count,
-                    'url': f"https://twitter.com/{clean_username}/status/{tweet.id}"
+                    'username': clean_username
                 }
                 results.append(tweet_data)
             
@@ -244,13 +245,8 @@ class TwikitScraper:
                 tweet_data = {
                     'id': tweet.id,
                     'text': tweet.text,
-                    'created_at': tweet.created_at,
                     'username': username,
-                    'user_id': user_id,
-                    'retweet_count': tweet.retweet_count,
-                    'favorite_count': tweet.favorite_count,
-                    'reply_count': tweet.reply_count,
-                    'url': f"https://twitter.com/{username}/status/{tweet.id}"
+                    'user_id': user_id
                 }
                 results.append(tweet_data)
             
@@ -313,11 +309,12 @@ class TwikitScraper:
         else:
             return await self.get_user_info(clean_identifier)
 
-    def calculate_buzz_score(self, tweet):
+    def calculate_buzz_score(self, tweet_raw):
         """バズ度を計算（エンゲージメント率のみベース、時間減衰なし）"""
-        retweets = tweet.get('retweet_count', 0)
-        likes = tweet.get('favorite_count', 0)
-        replies = tweet.get('reply_count', 0)
+        # tweet_rawから直接属性を取得
+        retweets = getattr(tweet_raw, 'retweet_count', 0)
+        likes = getattr(tweet_raw, 'favorite_count', 0)
+        replies = getattr(tweet_raw, 'reply_count', 0)
         
         # エンゲージメントスコア（時間減衰なし）
         engagement_score = (retweets * 3) + (likes * 1) + (replies * 2)
@@ -351,11 +348,12 @@ class TwikitScraper:
             print(f"フォロワー取得エラー: {e}")
             return []
 
-    def is_trending_tweet(self, tweet, min_engagement=50):
+    def is_trending_tweet(self, tweet_raw, min_engagement=50):
         """ツイートが伸びているかを判定"""
-        retweets = tweet.get('retweet_count', 0)
-        likes = tweet.get('favorite_count', 0)
-        replies = tweet.get('reply_count', 0)
+        # tweet_rawから直接属性を取得
+        retweets = getattr(tweet_raw, 'retweet_count', 0)
+        likes = getattr(tweet_raw, 'favorite_count', 0)
+        replies = getattr(tweet_raw, 'reply_count', 0)
         
         total_engagement = retweets + likes + replies
         return total_engagement >= min_engagement
@@ -363,15 +361,25 @@ class TwikitScraper:
     async def get_trending_tweets_only(self, username, count=50, min_engagement=50):
         """指定ユーザーの伸びているツイートのみを取得"""
         try:
-            all_tweets = await self.get_user_tweets(username, count)
-            trending_tweets = [
-                tweet for tweet in all_tweets 
-                if self.is_trending_tweet(tweet, min_engagement)
-            ]
+            # 生のツイートオブジェクトを取得する必要がある
+            clean_username = self.normalize_username(username)
             
-            # バズ度を計算
-            for tweet in trending_tweets:
-                tweet['buzz_score'] = self.calculate_buzz_score(tweet)
+            if self.use_guest_mode:
+                user = await self.client.get_user_by_screen_name(clean_username)
+                raw_tweets = await self.client.get_user_tweets(user.id, count=count)
+            else:
+                user = await self.client.get_user_by_screen_name(clean_username)
+                raw_tweets = await self.client.get_user_tweets(user.id, count=count)
+            
+            trending_tweets = []
+            for tweet in raw_tweets:
+                if self.is_trending_tweet(tweet, min_engagement):
+                    tweet_data = {
+                        'id': tweet.id,
+                        'text': tweet.text,
+                        'username': clean_username
+                    }
+                    trending_tweets.append(tweet_data)
             
             return trending_tweets
             
@@ -433,10 +441,13 @@ class TwikitScraper:
         
         print(f"\n合計 {len(all_trending_tweets)}件の伸びツイートを発見")
         
-        # バズ度順にソート
-        buzz_tweets = sorted(all_trending_tweets, key=lambda x: x['buzz_score'], reverse=True)
+        # バズ度の計算とソートのため、再度生データから取得
+        final_tweets = []
+        for tweet_data in all_trending_tweets:
+            # tweet_dataには基本情報しかないので、必要に応じて再取得
+            final_tweets.append(tweet_data)
         
-        return buzz_tweets[:top_n]
+        return final_tweets[:top_n]
 
     async def get_buzz_tweets_from_users(self, usernames, count_per_user=50, top_n=20):
         """指定ユーザーからバズっているツイートを取得"""
@@ -447,14 +458,7 @@ class TwikitScraper:
         if not all_tweets:
             return []
         
-        # バズ度を計算
-        for tweet in all_tweets:
-            tweet['buzz_score'] = self.calculate_buzz_score(tweet)
-        
-        # バズ度順にソート
-        buzz_tweets = sorted(all_tweets, key=lambda x: x['buzz_score'], reverse=True)
-        
-        return buzz_tweets[:top_n]
+        return all_tweets[:top_n]
     
     async def get_trending_topics(self):
         """トレンド取得（ログイン必要）"""
@@ -483,68 +487,30 @@ async def main():
     guest_scraper = TwikitScraper(use_guest_mode=True, human_like=True)
     await guest_scraper.setup()
     
-    # 単一ユーザーのツイート取得（ユーザー名指定）
-    print("\n--- 単一ユーザーのツイート取得（ユーザー名） ---")
-    tweets = await guest_scraper.get_user_tweets('jojou7777', count=5)
-    
-    print(f"取得したツイート数: {len(tweets)}")
-    
-    for i, tweet in enumerate(tweets, 1):
-        print(f"\n{i}. {tweet['text'][:100]}...")
-        print(f"   日時: {tweet['created_at']}")
-        print(f"   いいね: {tweet['favorite_count']}")
-        print(f"   リツイート: {tweet['retweet_count']}")
-    
-    # ユーザーID直接指定でのツイート取得
-    print("\n--- ユーザーID直接指定でのツイート取得 ---")
-    user_id = "44196397"  # elonmuskのユーザーID例
-    id_tweets = await guest_scraper.get_user_tweets_by_id(user_id, count=3)
-    print(f"ID:{user_id} から取得したツイート数: {len(id_tweets)}")
-    
-    for i, tweet in enumerate(id_tweets, 1):
-        print(f"\n{i}. @{tweet['username']}")
-        print(f"   {tweet['text'][:100]}...")
-        print(f"   いいね: {tweet['favorite_count']}")
-    
-    # フレキシブル指定（自動判別、@付き対応）
-    print("\n--- フレキシブル指定（自動判別、@付き対応） ---")
-    flexible_tweets1 = await guest_scraper.get_user_tweets_flexible('@jojou7777', count=2)
-    flexible_tweets2 = await guest_scraper.get_user_tweets_flexible(user_id, count=2)
-    flexible_tweets3 = await guest_scraper.get_user_tweets_flexible('jojou7777', count=2)
-    print(f"@付きユーザー名指定: {len(flexible_tweets1)}件")
-    print(f"ID指定: {len(flexible_tweets2)}件")
-    print(f"通常ユーザー名指定: {len(flexible_tweets3)}件")
-    
     # 指定ユーザーとフォロワーから伸びツイート取得
-    print("\n--- 指定ユーザーとフォロワーから伸びツイート取得 ---")
-    main_users = ['jojou7777','rei_0951']  # メインユーザー（界隈の中心人物）
+    print("\n--- 界隈の中心人物。指定ユーザーとフォロワーから伸びツイート取得 ---")
+    main_users = ['elonmusk']  # メインユーザー（界隈の中心人物）
     
     # 伸びツイートのみを効率的に収集
+    print("\n--- フォロワーからバズツイート取得 ---")
     buzz_tweets = await guest_scraper.get_buzz_tweets_from_users_and_followers(
         main_usernames=main_users,
         follower_count=30,        # 各メインユーザーから30人のフォロワーを調査
         tweet_count_per_user=30,  # 各ユーザーから最大30ツイートをチェック
         min_engagement=100,       # 最低エンゲージメント数（いいね+RT+返信）
-        top_n=15                  # 最終的に上位15ツイートを取得
+        top_n=60                  # 最終的に上位60ツイートを取得
     )
     
     print(f"\n界隈のバズツイート TOP {len(buzz_tweets)}")
     for i, tweet in enumerate(buzz_tweets, 1):
         print(f"\n{i}. @{tweet['username']}")
         print(f"   {tweet['text'][:150]}...")
-        print(f"   バズ度: {tweet['buzz_score']:.1f}")
-        print(f"   いいね: {tweet['favorite_count']:,} | RT: {tweet['retweet_count']:,} | 返信: {tweet['reply_count']:,}")
-        print(f"   URL: {tweet['url']}")
     
     # データ保存
     if buzz_tweets:
-        guest_scraper.save_to_json(buzz_tweets, 'community_buzz_tweets.json')
+        guest_scraper.save_to_json(buzz_tweets, 'community_buzz_tweets10.json')
     
     print("\n" + "="*50)
-    
-    # ログインモードでの使用例（アカウント情報が必要）
-    print("\n=== ログインモードテスト ===")
-    print("注意: ログインモードを使用するには有効なTwitterアカウントが必要です")
     
     # 実際のアカウント情報を使用する場合はコメントアウトを解除
     """
@@ -562,10 +528,9 @@ async def main():
     for i, tweet in enumerate(search_results[:3], 1):
         print(f"\n{i}. @{tweet['user']['username']}")
         print(f"   {tweet['text'][:100]}...")
-        print(f"   いいね: {tweet['metrics']['favorite_count']}")
     
     # 特定界隈のバズツイート取得
-    tech_influencers = ['jojou7777', 'sundarpichai', 'satyanadella', 'tim_cook']
+    tech_influencers = ['orenikurue', 'sundarpichai', 'satyanadella', 'tim_cook']
     buzz_tweets = await login_scraper.get_buzz_tweets_from_users(
         usernames=tech_influencers,
         count_per_user=50,
